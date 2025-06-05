@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>motoGYM - Tryb Solo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .start { background: #28a745; color: #fff; }
+    .stop { background: #dc3545; color: #fff; }
+    .reset { background: #ffc107; color: #000; }
+    .save { background: #007bff; color: #fff; }
+    .time-display {
+      font-size: 48px;
+      margin: 30px 0;
+    }
+    .log {
+      margin-top: 30px;
+      text-align: left;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    input {
+      padding: 8px;
+      font-size: 16px;
+      margin: 10px;
+      border-radius: 6px;
+      border: none;
+    }
+    .log-entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+    }
+    .log-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+  </style>
+</head>
+<body>
+  <h1>motoGYM - Tryb Solo</h1>
+  <label for="nicknameInput">Rider:</label>
+  <input type="text" id="nicknameInput" placeholder="Wpisz nick" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<label for="trackSelect">Wybierz trasę:</label>
+<select id="trackSelect">
+  <option value="Gymkhanowa">Gymkhanowa</option>
+  <option value="Ósemka">Ósemka</option>
+  <option value="Slalom A">Slalom A</option>
+  <option value="Testowa">Testowa</option>
+</select>
+
+  <div class="time-display" id="timer">00:00.00</div>
+  <button class="start" onclick="startTimer()">Start</button>
+  <button class="stop" onclick="stopTimer()">Stop</button>
+  <button class="reset" onclick="resetTimer()">Reset</button>
+  <button class="save" onclick="saveTime()">Zapisz wynik</button>
+  <button class="save" onclick="exportLog()">Eksportuj dziennik</button>
+  <button class="save" onclick="uploadSelected()">Wyślij zaznaczone</button>
+
+  <div class="log">
+    <h2>Dziennik treningowy</h2>
+    <ul id="log"></ul>
+  </div>
+
+<script>
+
+  // 🔑 Tworzenie klienta Supabase
+  const supabaseUrl = 'https://ixxjlwqchhdqogrhuafo.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4eGpsd3FjaGhkcW9ncmh1YWZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg5MzU0NjAsImV4cCI6MjA2NDUxMTQ2MH0.axoe0XItrANtM1tim71gYNkwQb9SX_B5AZaQXfHCBlA';
+  const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+
+  console.log("Supabase połączony:", supabase);
+
+  let startTime;
+  let interval;
+  let elapsed = 0;
+  let isRunning = false; // 🆕 flaga działania
+
+// 🧠 Zapamiętywanie nicka w localStorage
+const nicknameInput = document.getElementById("nicknameInput");
+
+// Załaduj nick z localStorage przy starcie
+window.addEventListener("DOMContentLoaded", () => {
+  const savedNick = localStorage.getItem("nickname");
+  if (savedNick) {
+    nicknameInput.value = savedNick;
+  }
+});
+
+// Zapisuj nick do localStorage przy zmianie
+nicknameInput.addEventListener("input", () => {
+  localStorage.setItem("nickname", nicknameInput.value);
+});
+
+  function startTimer() {
+    if (isRunning) return; // 🛑 zapobiega wielokrotnemu uruchomieniu
+
+    isRunning = true;
+    startTime = Date.now() - elapsed;
+    interval = setInterval(() => {
+      elapsed = Date.now() - startTime;
+      const date = new Date(elapsed);
+      const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+      const milliseconds = String(Math.floor(date.getUTCMilliseconds() / 10)).padStart(2, '0');
+      document.getElementById("timer").textContent = `${minutes}:${seconds}.${milliseconds}`;
+    }, 10);
+  }
+
+  function stopTimer() {
+    clearInterval(interval);
+    isRunning = false; // 🆗 pozwala ponownie kliknąć "Start"
+  }
+
+  async function saveTime() {
+  const timeDisplay = document.getElementById("timer").textContent;
+  const timeRaw = elapsed;
+  const track = document.getElementById("trackSelect").value;
+  const nickname = nicknameInput.value || "Anonim";
+  const now = new Date();
+  const dateStr = now.toLocaleString();
+
+  const li = document.createElement("li");
+  li.classList.add("log-entry");
+  li.dataset.nickname = nickname;
+  li.dataset.track = track;
+  li.dataset.timeDisplay = timeDisplay;
+  li.dataset.timeRaw = timeRaw;
+
+  const entryText = document.createElement("span");
+  entryText.textContent = `${dateStr} - ${track} - ${timeDisplay} - ${nickname}`;
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "upload-checkbox";
+
+  li.appendChild(entryText);
+  li.appendChild(checkbox);
+
+  document.getElementById("log").appendChild(li);
+}
+
+// 🆕 Funkcja do wysyłania zaznaczonych wyników
+async function uploadSelected() {
+  const selected = document.querySelectorAll(".upload-checkbox:checked");
+  if (selected.length === 0) {
+    alert("Zaznacz wyniki do wysłania.");
+    return;
+  }
+
+  const entries = Array.from(selected).map(checkbox => {
+    const li = checkbox.closest("li");
+    return {
+      user_id: li.dataset.nickname,
+      track_name: li.dataset.track,
+      result_time_raw: parseInt(li.dataset.timeRaw),
+      result_time_display: li.dataset.timeDisplay
+    };
+  });
+
+  try {
+    const { data, error } = await supabaseClient.from('results').insert(entries);
+
+    if (error) {
+      console.error("❌ Supabase insert error:", error);
+      alert("❌ Błąd zapisu: " + error.message);
+    } else {
+      alert(`✅ Zapisano ${entries.length} wyników!`);
+      selected.forEach(cb => {
+        const li = cb.closest("li");
+        cb.remove(); // usuwa checkbox
+        const span = document.createElement("span");
+        span.innerHTML = ` <span style="color: #28a745;">✅</span>`;
+        li.appendChild(span); // checkbox znika, obok wpisu pojawia się znacznik ✅
+      });
+    }
+  } catch (e) {
+    console.error("❌ Wewnętrzny błąd:", e);
+    alert("❌ Coś poszło nie tak: " + e.message);
+  }
+}
+
+  function exportLog() {
+    const logItems = document.querySelectorAll("#log li");
+    if (logItems.length === 0) {
+      alert("Brak zapisanych przejazdów do eksportu.");
+      return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,Data i czas,Wynik\n";
+    logItems.forEach(item => {
+      const parts = item.textContent.split(" - ");
+      csvContent += `${parts[0]},${parts[1]}\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "dziennik_motogym.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  function resetTimer() {
+  clearInterval(interval);
+  elapsed = 0;
+  document.getElementById("timer").textContent = "00:00.00";
+  }
+
+  document.getElementById("trackSelect").addEventListener("change", resetTimer);
+
+</script>
+</body>
+</html>
